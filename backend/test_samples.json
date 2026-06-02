@@ -1,0 +1,102 @@
+[
+  {
+    "id": 1,
+    "description": "Khách hàng Churn (High Risk) - Mẫu 1 (Thâm niên ngắn, khiếu nại, điểm hài lòng thấp)",
+    "expected_churn": true,
+    "payload": {
+      "Tenure": 4.0,
+      "CityTier": 3.0,
+      "WarehouseToHome": 6.0,
+      "PreferredPaymentMode": "Debit Card",
+      "Gender": "Female",
+      "HourSpendOnApp": 3.0,
+      "NumberOfDeviceRegistered": 3.0,
+      "PreferedOrderCat": "Laptop & Accessory",
+      "SatisfactionScore": 2.0,
+      "MaritalStatus": "Single",
+      "NumberOfAddress": 9.0,
+      "Complain": true,
+      "OrderAmountHikeFromlastYear": 11.0,
+      "CouponUsed": 1.0,
+      "OrderCount": 1.0,
+      "DaySinceLastOrder": 5.0,
+      "CashbackAmount": 160.0,
+      "PreferredLoginDevice": "Mobile Phone"
+    }
+  },
+  {
+    "id": 2,
+    "description": "Khách hàng Churn (High Risk) - Mẫu 2 (Thâm niên cực ngắn, không khiếu nại nhưng mức độ hài lòng cao mà khoảng cách xa)",
+    "expected_churn": true,
+    "payload": {
+      "Tenure": 0.0,
+      "CityTier": 1.0,
+      "WarehouseToHome": 12.0,
+      "PreferredPaymentMode": "Credit Card",
+      "Gender": "Male",
+      "HourSpendOnApp": 3.0,
+      "NumberOfDeviceRegistered": 3.0,
+      "PreferedOrderCat": "Mobile Phone",
+      "SatisfactionScore": 5.0,
+      "MaritalStatus": "Single",
+      "NumberOfAddress": 3.0,
+      "Complain": false,
+      "OrderAmountHikeFromlastYear": 11.0,
+      "CouponUsed": 1.0,
+      "OrderCount": 1.0,
+      "DaySinceLastOrder": 3.0,
+      "CashbackAmount": 130.0,
+      "PreferredLoginDevice": "Mobile Phone"
+    }
+  },
+  {
+    "id": 3,
+    "description": "Khách hàng Không Churn (Low Risk) - Mẫu 3 (Thâm niên trung bình, không khiếu nại, hài lòng khá)",
+    "expected_churn": false,
+    "payload": {
+      "Tenure": 8.0,
+      "CityTier": 3.0,
+      "WarehouseToHome": 6.0,
+      "PreferredPaymentMode": "E wallet",
+      "Gender": "Male",
+      "HourSpendOnApp": 3.0,
+      "NumberOfDeviceRegistered": 3.0,
+      "PreferedOrderCat": "Fashion",
+      "SatisfactionScore": 4.0,
+      "MaritalStatus": "Divorced",
+      "NumberOfAddress": 2.0,
+      "Complain": false,
+      "OrderAmountHikeFromlastYear": 13.0,
+      "CouponUsed": 1.0,
+      "OrderCount": 1.0,
+      "DaySinceLastOrder": 6.0,
+      "CashbackAmount": 173.0,
+      "PreferredLoginDevice": "Mobile Phone"
+    }
+  },
+  {
+    "id": 4,
+    "description": "Khách hàng Không Churn (Low Risk) - Mẫu 4 (Thâm niên dài, đã kết hôn, hài lòng cao, không khiếu nại)",
+    "expected_churn": false,
+    "payload": {
+      "Tenure": 18.0,
+      "CityTier": 1.0,
+      "WarehouseToHome": 14.0,
+      "PreferredPaymentMode": "Debit Card",
+      "Gender": "Male",
+      "HourSpendOnApp": 2.0,
+      "NumberOfDeviceRegistered": 3.0,
+      "PreferedOrderCat": "Laptop & Accessory",
+      "SatisfactionScore": 4.0,
+      "MaritalStatus": "Married",
+      "NumberOfAddress": 9.0,
+      "Complain": false,
+      "OrderAmountHikeFromlastYear": 18.0,
+      "CouponUsed": 1.0,
+      "OrderCount": 1.0,
+      "DaySinceLastOrder": 15.0,
+      "CashbackAmount": 123.0,
+      "PreferredLoginDevice": "Mobile Phone"
+    }
+  }
+]

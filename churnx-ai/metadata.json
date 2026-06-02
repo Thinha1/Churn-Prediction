@@ -1,0 +1,6 @@
+{
+  "name": "ChurnX AI",
+  "description": "Enterprise-grade customer churn prediction and retention analytics dashboard.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
