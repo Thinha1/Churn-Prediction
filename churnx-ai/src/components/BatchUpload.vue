@@ -1,14 +1,63 @@
 <script setup lang="ts">
-import { Upload, Search, Filter, Info, CheckCircle, BrainCircuit, ChevronLeft, ChevronRight } from 'lucide-vue-next';
+import { ref, computed } from 'vue';
+import { Upload, Search, Filter, Info, CheckCircle, BrainCircuit, ChevronLeft, ChevronRight, Loader2, Eye } from 'lucide-vue-next';
 import { cn } from '../lib/utils';
 
-const previewData = [
-  { id: '#C-82910', tenure: '42 months', complaint: 'None', score: '4.8 / 5', risk: 'Low' },
-  { id: '#C-91022', tenure: '3 months', complaint: 'Billing Error', score: '1.2 / 5', risk: 'High' },
-  { id: '#C-77219', tenure: '15 months', complaint: 'SLA Delay', score: '3.4 / 5', risk: 'Medium' },
-  { id: '#C-81203', tenure: '58 months', complaint: 'None', score: '5.0 / 5', risk: 'Low' },
-  { id: '#C-99218', tenure: '6 months', complaint: 'Technical Issue', score: '2.1 / 5', risk: 'High' },
-];
+const isUploading = ref(false);
+const previewData = ref<any[]>([]);
+const totalRows = ref(0);
+
+const currentPage = ref(1);
+const itemsPerPage = 10;
+const paginatedData = computed(() => {
+  const start = (currentPage.value - 1) * itemsPerPage;
+  return previewData.value.slice(start, start + itemsPerPage);
+});
+
+const handleFileUpload = async (event: any) => {
+  const file = event.target.files?.[0] || event.dataTransfer?.files?.[0];
+  if (!file) return;
+
+  isUploading.value = true;
+  const formData = new FormData();
+  formData.append('file', file);
+
+  try {
+    const res = await fetch('http://127.0.0.1:8005/predict_batch', {
+      method: 'POST',
+      body: formData
+    });
+    const data = await res.json();
+    if (data.results) {
+      previewData.value = data.results;
+      totalRows.value = data.total;
+      currentPage.value = 1;
+
+      const history = JSON.parse(localStorage.getItem('churnx_prediction_history') || '[]');
+      const dateStr = new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+      const timeStr = new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
+      
+      const newEntries = data.results.map((row: any) => ({
+        id: row.id,
+        date: dateStr,
+        time: timeStr,
+        customerData: row.customerData,
+        risk: row.risk,
+        confidence: row.confidence,
+        fullPrediction: row.fullPrediction
+      }));
+      
+      const updatedHistory = [...newEntries, ...history];
+      localStorage.setItem('churnx_prediction_history', JSON.stringify(updatedHistory));
+    } else {
+      alert("Error: " + data.error);
+    }
+  } catch (error) {
+    console.error('Upload failed', error);
+  } finally {
+    isUploading.value = false;
+  }
+};
 
 const requirements = [
   'Header row must match schema', 
@@ -16,20 +65,29 @@ const requirements = [
   'Satisfaction score (1.0 to 5.0)'
 ];
 
-const columns = ['Customer ID', 'Tenure', 'Complaint', 'Satisfaction Score', 'Churn Risk (Predicted)'];
+const columns = ['Customer ID', 'Tenure', 'Complaint', 'Satisfaction Score', 'Churn Risk (Predicted)', 'Actions'];
+
+const emit = defineEmits(['view-item']);
 </script>
 
 <template>
   <div class="p-6 space-y-8 max-w-[1440px] mx-auto animate-fade-in-up">
     <!-- Upload Drag/Drop -->
     <section>
-      <div class="bg-surface-container-low border-2 border-dashed border-outline-variant rounded-2xl p-16 flex flex-col items-center justify-center text-center transition-all hover:border-primary hover:bg-surface-container group cursor-pointer">
+      <div 
+        @dragover.prevent 
+        @drop.prevent="handleFileUpload"
+        class="bg-surface-container-low border-2 border-dashed border-outline-variant rounded-2xl p-16 flex flex-col items-center justify-center text-center transition-all hover:border-primary hover:bg-surface-container group cursor-pointer relative">
+        <input type="file" @change="handleFileUpload" class="absolute inset-0 w-full h-full opacity-0 cursor-pointer" accept=".csv, .xlsx, .xls" :disabled="isUploading" />
         <div class="w-16 h-16 bg-primary-fixed rounded-full flex items-center justify-center mb-6 group-hover:bg-primary transition-all duration-300">
-          <Upload class="w-8 h-8 text-primary group-hover:text-on-primary" />
+          <Loader2 v-if="isUploading" class="w-8 h-8 text-primary group-hover:text-on-primary animate-spin" />
+          <Upload v-else class="w-8 h-8 text-primary group-hover:text-on-primary" />
         </div>
-        <h3 class="text-xl font-bold text-on-surface mb-2">Drag and drop your dataset here</h3>
+        <h3 class="text-xl font-bold text-on-surface mb-2">
+          {{ isUploading ? 'Processing your dataset...' : 'Drag and drop your dataset here' }}
+        </h3>
         <p class="text-sm text-secondary max-w-md mb-8">Support for Excel (.xlsx) and CSV files up to 50MB. Max 10,000 rows per batch.</p>
-        <button class="border border-outline px-8 py-3 rounded-xl font-bold hover:bg-surface-container-highest transition-colors">
+        <button class="border border-outline px-8 py-3 rounded-xl font-bold hover:bg-surface-container-highest transition-colors" :disabled="isUploading">
           Browse Files
         </button>
       </div>
@@ -61,19 +119,22 @@ const columns = ['Customer ID', 'Tenure', 'Complaint', 'Satisfaction Score', 'Ch
             <tr>
               <th v-for="(h, idx) in columns" :key="idx" :class="cn(
                 'px-6 py-4 text-[10px] font-bold text-secondary uppercase tracking-widest',
-                idx === 4 && 'text-right'
+                idx === 5 && 'text-right'
               )">
                 {{ h }}
               </th>
             </tr>
           </thead>
           <tbody class="divide-y divide-outline-variant">
-            <tr v-for="(row, idx) in previewData" :key="idx" class="hover:bg-surface-container-low transition-colors group">
+            <tr v-if="previewData.length === 0">
+              <td colspan="5" class="px-6 py-8 text-center text-secondary">No data uploaded yet. Please upload a file to see predictions.</td>
+            </tr>
+            <tr v-for="(row, idx) in paginatedData" :key="idx" class="hover:bg-surface-container-low transition-colors group">
               <td class="px-6 py-4 text-sm font-medium">{{ row.id }}</td>
               <td class="px-6 py-4 text-sm text-secondary">{{ row.tenure }}</td>
               <td class="px-6 py-4 text-sm text-secondary">{{ row.complaint }}</td>
               <td class="px-6 py-4 text-sm text-secondary font-bold">{{ row.score }}</td>
-              <td class="px-6 py-4 text-right">
+              <td class="px-6 py-4">
                 <span :class="cn(
                   'px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider',
                   row.risk === 'Low' && 'bg-green-100 text-green-700',
@@ -83,26 +144,26 @@ const columns = ['Customer ID', 'Tenure', 'Complaint', 'Satisfaction Score', 'Ch
                   {{ row.risk }}
                 </span>
               </td>
+              <td class="px-6 py-4 text-right">
+                <button @click="emit('view-item', row)" class="text-primary hover:bg-primary/5 px-4 py-2 rounded-xl text-xs font-bold transition-all border border-transparent hover:border-primary/20 flex items-center gap-2 ml-auto">
+                  <Eye class="w-4 h-4" />
+                  View
+                </button>
+              </td>
             </tr>
           </tbody>
         </table>
       </div>
 
       <div class="p-6 bg-surface-bright flex flex-col sm:flex-row justify-between items-center border-t border-outline-variant gap-4">
-        <p class="text-xs text-outline font-medium">Showing 1 to 5 of 250 entries</p>
-        <div class="flex items-center gap-2">
-          <button class="p-2 rounded-lg border border-outline-variant text-outline hover:bg-surface-container transition-colors disabled:opacity-30">
-            <ChevronLeft class="w-4 h-4" />
-          </button>
-          <button class="w-8 h-8 rounded-lg bg-primary text-on-primary text-xs font-bold">1</button>
-          <button class="w-8 h-8 rounded-lg hover:bg-surface-container text-xs font-medium">2</button>
-          <button class="w-8 h-8 rounded-lg hover:bg-surface-container text-xs font-medium">3</button>
-          <span class="mx-1 text-outline">...</span>
-          <button class="w-8 h-8 rounded-lg hover:bg-surface-container text-xs font-medium">50</button>
-          <button class="p-2 rounded-lg border border-outline-variant text-outline hover:bg-surface-container transition-colors">
-            <ChevronRight class="w-4 h-4" />
-          </button>
-        </div>
+        <span class="text-xs text-outline font-medium">Showing {{ previewData.length > 0 ? (currentPage - 1) * itemsPerPage + 1 : 0 }} to {{ Math.min(currentPage * itemsPerPage, previewData.length) }} of {{ totalRows }} entries</span>
+        <el-pagination
+          v-model:current-page="currentPage"
+          :page-size="itemsPerPage"
+          :total="totalRows"
+          layout="prev, pager, next"
+          background
+        />
       </div>
     </section>
 

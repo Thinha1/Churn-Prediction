@@ -1,7 +1,9 @@
 <script setup lang="ts">
-import { ref } from 'vue';
+import { ref, watch } from 'vue';
 import { Info, AlertTriangle, Sparkles, LineChart, ChevronRight } from 'lucide-vue-next';
 import { cn } from '../lib/utils';
+
+const props = defineProps<{ initialData?: any }>();
 
 const form = ref({
   Tenure: null as number | null,
@@ -27,10 +29,28 @@ const form = ref({
 const isPredicting = ref(false);
 const predictionResult = ref<any>(null);
 
+watch(() => props.initialData, (newVal) => {
+  if (newVal) {
+    if (newVal.customerData) {
+      form.value = { ...newVal.customerData };
+    }
+    if (newVal.fullPrediction) {
+      predictionResult.value = newVal.fullPrediction;
+    } else {
+      predictionResult.value = {
+        risk_level: newVal.risk,
+        confidence: newVal.confidence,
+        probability: newVal.confidence / 100,
+        top_features: []
+      };
+    }
+  }
+}, { immediate: true });
+
 const predictChurn = async () => {
   isPredicting.value = true;
   try {
-    const response = await fetch('http://127.0.0.1:8000/predict', {
+    const response = await fetch('http://127.0.0.1:8005/predict', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -67,7 +87,8 @@ const predictChurn = async () => {
         time: new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' }),
         customerData: { ...form.value },
         risk: predictionResult.value.risk_level,
-        confidence: predictionResult.value.confidence
+        confidence: predictionResult.value.confidence,
+        fullPrediction: predictionResult.value
       };
       history.unshift(newEntry);
       localStorage.setItem('churnx_prediction_history', JSON.stringify(history));

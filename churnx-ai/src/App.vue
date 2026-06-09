@@ -7,6 +7,12 @@ import BatchUpload from './components/BatchUpload.vue';
 import History from './components/History.vue';
 
 const activeTab = ref('dashboard');
+const selectedHistoryData = ref<any>(null);
+
+const handleViewHistory = (data: any) => {
+  selectedHistoryData.value = data;
+  activeTab.value = 'dashboard';
+};
 
 const pageTitle = computed(() => {
   switch (activeTab.value) {
@@ -28,9 +34,9 @@ const pageTitle = computed(() => {
       
       <main class="flex-1 overflow-x-hidden">
         <transition name="fade-slide" mode="out-in">
-          <Dashboard v-if="activeTab === 'dashboard'" />
-          <BatchUpload v-else-if="activeTab === 'batch'" />
-          <History v-else-if="activeTab === 'history'" />
+          <Dashboard v-if="activeTab === 'dashboard'" :initial-data="selectedHistoryData" />
+          <BatchUpload v-else-if="activeTab === 'batch'" @view-item="handleViewHistory" />
+          <History v-else-if="activeTab === 'history'" @view-item="handleViewHistory" />
           <div v-else-if="activeTab === 'settings'" class="p-12 text-center">
             <h3 class="text-2xl font-bold text-outline">Settings Module</h3>
             <p class="text-secondary mt-2">Enterprise configuration and API management coming soon.</p>

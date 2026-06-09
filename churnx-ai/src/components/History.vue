@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, onMounted } from 'vue';
+import { ref, onMounted, computed } from 'vue';
 import { 
   BarChart2, 
   AlertCircle, 
@@ -9,7 +9,8 @@ import {
   Download, 
   RefreshCcw, 
   Eye,
-  Plus
+  Plus,
+  Trash2
 } from 'lucide-vue-next';
 import { cn } from '../lib/utils';
 
@@ -23,6 +24,127 @@ onMounted(() => {
 });
 
 const headers = ['Date & Time', 'Customer ID', 'Result', 'Confidence', 'Actions'];
+
+const emit = defineEmits(['view-item']);
+
+const deleteItem = (rowToDelete: any) => {
+  historyData.value = historyData.value.filter(row => row !== rowToDelete);
+  localStorage.setItem('churnx_prediction_history', JSON.stringify(historyData.value));
+};
+
+const totalRuns = computed(() => historyData.value.length);
+const highRiskCount = computed(() => historyData.value.filter(row => row.risk === 'High').length);
+
+const searchQuery = ref('');
+const filterRisk = ref('All Risk Levels');
+const filterDateRange = ref<[Date, Date] | null>(null);
+
+const filteredData = computed(() => {
+  return historyData.value.filter(row => {
+    const searchMatch = row.id.toLowerCase().includes(searchQuery.value.toLowerCase()) || 
+                        (row.date && row.date.toLowerCase().includes(searchQuery.value.toLowerCase()));
+    const riskMatch = filterRisk.value === 'All Risk Levels' || row.risk === filterRisk.value;
+    
+    let dateMatch = true;
+    if (filterDateRange.value && filterDateRange.value.length === 2) {
+      const rowDate = new Date(row.date);
+      const start = new Date(filterDateRange.value[0]);
+      start.setHours(0,0,0,0);
+      const end = new Date(filterDateRange.value[1]);
+      end.setHours(23,59,59,999);
+      dateMatch = rowDate >= start && rowDate <= end;
+    }
+    
+    return searchMatch && riskMatch && dateMatch;
+  });
+});
+
+const downloadCSV = () => {
+  if (filteredData.value.length === 0) return;
+  
+  const headers = [
+    'CustomerID', 'Churn', 'Tenure', 'PreferredLoginDevice', 'CityTier', 'WarehouseToHome', 
+    'PreferredPaymentMode', 'Gender', 'HourSpendOnApp', 'NumberOfDeviceRegistered', 
+    'PreferedOrderCat', 'SatisfactionScore', 'MaritalStatus', 'NumberOfAddress', 
+    'Complain', 'OrderAmountHikeFromlastYear', 'CouponUsed', 'OrderCount', 
+    'DaySinceLastOrder', 'CashbackAmount'
+  ];
+
+  const csvContent = [
+    headers.join(','),
+    ...filteredData.value.map(row => {
+      const data = row.customerData || {};
+      const churn = row.risk === 'High' ? 1 : 0;
+      const complain = data.Complain === true || data.Complain === 1 || String(data.Complain).toLowerCase() === 'yes' ? 1 : 0;
+      
+      const rowValues = [
+        row.id,
+        churn,
+        data.Tenure ?? '',
+        data.PreferredLoginDevice ?? '',
+        data.CityTier ?? '',
+        data.WarehouseToHome ?? '',
+        data.PreferredPaymentMode ?? '',
+        data.Gender ?? '',
+        data.HourSpendOnApp ?? '',
+        data.NumberOfDeviceRegistered ?? '',
+        data.PreferedOrderCat ?? '',
+        data.SatisfactionScore ?? '',
+        data.MaritalStatus ?? '',
+        data.NumberOfAddress ?? '',
+        complain,
+        data.OrderAmountHikeFromlastYear ?? '',
+        data.CouponUsed ?? '',
+        data.OrderCount ?? '',
+        data.DaySinceLastOrder ?? '',
+        data.CashbackAmount ?? ''
+      ];
+
+      return rowValues.map(val => {
+        const str = String(val);
+        return str.includes(',') ? `"${str}"` : str;
+      }).join(',');
+    })
+  ].join('\n');
+  
+  const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement('a');
+  link.setAttribute('href', url);
+  link.setAttribute('download', `churn_retraining_data_${new Date().getTime()}.csv`);
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+};
+
+const currentPage = ref(1);
+const itemsPerPage = 10;
+const totalPages = computed(() => Math.max(1, Math.ceil(filteredData.value.length / itemsPerPage)));
+
+const paginatedData = computed(() => {
+  const start = (currentPage.value - 1) * itemsPerPage;
+  return filteredData.value.slice(start, start + itemsPerPage);
+});
+
+const displayedPages = computed(() => {
+  const pages = [];
+  let start = Math.max(1, currentPage.value - 2);
+  let end = Math.min(totalPages.value, start + 4);
+  if (end - start < 4) {
+    start = Math.max(1, end - 4);
+  }
+  for (let i = start; i <= end; i++) {
+    pages.push(i);
+  }
+  return pages;
+});
+
+const nextPage = () => {
+  if (currentPage.value < totalPages.value) currentPage.value++;
+};
+const prevPage = () => {
+  if (currentPage.value > 1) currentPage.value--;
+};
 </script>
 
 <template>
@@ -40,7 +162,7 @@ const headers = ['Date & Time', 'Customer ID', 'Result', 'Confidence', 'Actions'
           </div>
           <div>
             <p class="text-[10px] font-bold text-outline uppercase tracking-wider">Total Runs</p>
-            <p class="text-xl font-bold">1,284</p>
+            <p class="text-xl font-bold">{{ totalRuns }}</p>
           </div>
         </div>
         <div class="bg-surface-container-lowest border border-outline-variant p-4 rounded-xl flex items-center gap-4 shadow-sm min-w-[180px]">
@@ -49,7 +171,7 @@ const headers = ['Date & Time', 'Customer ID', 'Result', 'Confidence', 'Actions'
           </div>
           <div>
             <p class="text-[10px] font-bold text-outline uppercase tracking-wider">High Risk Found</p>
-            <p class="text-xl font-bold text-error">342</p>
+            <p class="text-xl font-bold text-error">{{ highRiskCount }}</p>
           </div>
         </div>
       </div>
@@ -63,42 +185,46 @@ const headers = ['Date & Time', 'Customer ID', 'Result', 'Confidence', 'Actions'
           <div class="relative">
             <Search class="w-4 h-4 absolute left-4 top-1/2 -translate-y-1/2 text-outline" />
             <input 
+              v-model="searchQuery"
               type="text" 
               placeholder="e.g. CUST-90210" 
               class="w-full pl-11 pr-4 py-2.5 bg-surface rounded-xl border border-outline-variant focus:ring-2 focus:ring-primary outline-none transition-all text-sm"
             />
           </div>
         </div>
-        <div class="space-y-2">
+        <div class="space-y-2 col-span-1 md:col-span-2 lg:col-span-1">
           <label class="text-xs font-bold">Date Range</label>
-          <div class="relative">
-            <Calendar class="w-4 h-4 absolute left-4 top-1/2 -translate-y-1/2 text-outline" />
-            <input 
-              type="text" 
-              placeholder="Last 30 Days" 
-              class="w-full pl-11 pr-4 py-2.5 bg-surface rounded-xl border border-outline-variant focus:ring-2 focus:ring-primary outline-none transition-all text-sm"
+          <div class="w-full h-[42px] relative overflow-hidden rounded-xl border border-outline-variant focus-within:ring-2 focus-within:ring-primary transition-all">
+            <el-date-picker
+              v-model="filterDateRange"
+              type="daterange"
+              range-separator="-"
+              start-placeholder="Start date"
+              end-placeholder="End date"
+              format="MMM D, YYYY"
+              class="!w-full !h-full !border-0 !bg-surface"
+              style="--el-input-bg-color: transparent; --el-input-border-color: transparent; width: 100%; height: 100%; box-shadow: none;"
             />
           </div>
         </div>
         <div class="space-y-2">
           <label class="text-xs font-bold">Risk Level</label>
-          <select class="w-full px-4 py-2.5 bg-surface rounded-xl border border-outline-variant focus:ring-2 focus:ring-primary outline-none text-sm appearance-none cursor-pointer">
-            <option>All Risk Levels</option>
-            <option>High Risk</option>
-            <option>Medium Risk</option>
-            <option>Low Risk</option>
+          <select 
+            v-model="filterRisk"
+            class="w-full px-4 py-2.5 bg-surface rounded-xl border border-outline-variant focus:ring-2 focus:ring-primary outline-none text-sm appearance-none cursor-pointer">
+            <option value="All Risk Levels">All Risk Levels</option>
+            <option value="High">High Risk</option>
+            <option value="Medium">Medium Risk</option>
+            <option value="Low">Low Risk</option>
           </select>
         </div>
         <div class="flex gap-3">
-          <button class="flex-1 bg-primary text-white h-[42px] rounded-xl font-bold text-sm flex items-center justify-center gap-2 shadow-md hover:shadow-lg active:scale-[0.98] transition-all">
-            <Filter class="w-4 h-4" />
-            Apply
+          <button @click="downloadCSV" class="flex-1 bg-primary text-white h-[42px] rounded-xl font-bold text-sm flex items-center justify-center gap-2 shadow-md hover:shadow-lg active:scale-[0.98] transition-all">
+            <Download class="w-4 h-4" />
+            Export CSV
           </button>
-          <button class="p-2.5 bg-surface-container-high text-on-surface rounded-xl border border-outline-variant hover:bg-surface-variant transition-colors group">
-            <Download class="w-5 h-5 group-hover:scale-110 transition-transform" />
-          </button>
-          <button class="p-2.5 bg-surface-container-high text-on-surface rounded-xl border border-outline-variant hover:bg-surface-variant transition-colors">
-            <RefreshCcw class="w-5 h-5" />
+          <button class="p-2.5 bg-surface-container-high text-on-surface rounded-xl border border-outline-variant hover:bg-surface-variant transition-colors group" title="Refresh">
+            <RefreshCcw class="w-5 h-5 group-hover:rotate-180 transition-transform duration-500" />
           </button>
         </div>
       </div>
@@ -119,7 +245,7 @@ const headers = ['Date & Time', 'Customer ID', 'Result', 'Confidence', 'Actions'
             </tr>
           </thead>
           <tbody class="divide-y divide-outline-variant">
-            <tr v-for="(row, idx) in historyData" :key="idx" class="hover:bg-surface-bright transition-colors group">
+            <tr v-for="(row, idx) in paginatedData" :key="idx" class="hover:bg-surface-bright transition-colors group">
               <td class="px-6 py-6">
                 <div class="flex flex-col">
                   <span class="text-sm font-bold text-on-surface">{{ row.date }}</span>
@@ -168,10 +294,15 @@ const headers = ['Date & Time', 'Customer ID', 'Result', 'Confidence', 'Actions'
                 </div>
               </td>
               <td class="px-6 py-6 text-right">
-                <button class="text-primary hover:bg-primary/5 px-4 py-2 rounded-xl text-xs font-bold transition-all border border-transparent hover:border-primary/20 flex items-center gap-2 ml-auto">
-                  <Eye class="w-4 h-4" />
-                  View
-                </button>
+                <div class="flex items-center justify-end gap-2">
+                  <button @click="emit('view-item', row)" class="text-primary hover:bg-primary/5 px-4 py-2 rounded-xl text-xs font-bold transition-all border border-transparent hover:border-primary/20 flex items-center gap-2">
+                    <Eye class="w-4 h-4" />
+                    View
+                  </button>
+                  <button @click="deleteItem(row)" class="text-error hover:bg-error/5 p-2 rounded-xl transition-all border border-transparent hover:border-error/20 flex items-center justify-center" title="Delete">
+                    <Trash2 class="w-4 h-4" />
+                  </button>
+                </div>
               </td>
             </tr>
           </tbody>
@@ -180,20 +311,14 @@ const headers = ['Date & Time', 'Customer ID', 'Result', 'Confidence', 'Actions'
 
       <!-- Footer info/stats -->
       <div class="px-6 py-4 bg-surface-container-low/30 flex items-center justify-between border-t border-outline-variant">
-        <span class="text-xs text-outline font-medium">Showing 1 to 10 of 1,284 results</span>
-        <div class="flex items-center gap-4">
-           <button class="flex items-center gap-2 px-3 py-1.5 rounded-lg hover:bg-surface-container transition-colors text-xs font-bold text-outline">
-             Previous
-           </button>
-           <div class="flex gap-1">
-              <button class="w-8 h-8 rounded-lg bg-primary text-white text-xs font-bold">1</button>
-              <button class="w-8 h-8 rounded-lg hover:bg-surface-container text-xs font-bold">2</button>
-              <button class="w-8 h-8 rounded-lg hover:bg-surface-container text-xs font-bold">3</button>
-           </div>
-           <button class="flex items-center gap-2 px-3 py-1.5 rounded-lg hover:bg-surface-container transition-colors text-xs font-bold text-primary">
-             Next
-           </button>
-        </div>
+        <span class="text-xs text-outline font-medium">Showing {{ filteredData.length > 0 ? (currentPage - 1) * itemsPerPage + 1 : 0 }} to {{ Math.min(currentPage * itemsPerPage, filteredData.length) }} of {{ filteredData.length }} results</span>
+        <el-pagination
+          v-model:current-page="currentPage"
+          :page-size="itemsPerPage"
+          :total="filteredData.length"
+          layout="prev, pager, next"
+          background
+        />
       </div>
     </div>
 

@@ -1,7 +1,8 @@
 import os
+import io
 import xgboost as xgb
 import pandas as pd
-from fastapi import FastAPI
+from fastapi import FastAPI, UploadFile, File
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 import warnings
@@ -177,3 +178,61 @@ def predict(request: ChurnPredictionRequest):
         "risk_level": risk_level,
         "top_features": top_features
     }
+
+@app.post("/predict_batch")
+async def predict_batch(file: UploadFile = File(...)):
+    contents = await file.read()
+    if file.filename.endswith('.csv'):
+        df = pd.read_csv(io.BytesIO(contents))
+    elif file.filename.endswith(('.xls', '.xlsx')):
+        df = pd.read_excel(io.BytesIO(contents))
+    else:
+        return {"error": "Invalid file format"}
+    
+    df.fillna(0, inplace=True)
+    
+    results = []
+    
+    for idx, row in df.iterrows():
+        try:
+            req = ChurnPredictionRequest(
+                Tenure=float(row.get('Tenure', 0.0)),
+                WarehouseToHome=float(row.get('WarehouseToHome', 0.0)),
+                NumberOfDeviceRegistered=float(row.get('NumberOfDeviceRegistered', 0.0)),
+                PreferedOrderCat=str(row.get('PreferedOrderCat', 'Laptop & Accessory')),
+                SatisfactionScore=float(row.get('SatisfactionScore', 3.0)),
+                MaritalStatus=str(row.get('MaritalStatus', 'Single')),
+                NumberOfAddress=float(row.get('NumberOfAddress', 0.0)),
+                Complain=bool(row.get('Complain', False)),
+                DaySinceLastOrder=float(row.get('DaySinceLastOrder', 0.0)),
+                CashbackAmount=float(row.get('CashbackAmount', 0.0)),
+                CityTier=float(row.get('CityTier', 1.0)),
+                HourSpendOnApp=float(row.get('HourSpendOnApp', 0.0)),
+                OrderAmountHikeFromlastYear=float(row.get('OrderAmountHikeFromlastYear', 0.0)),
+                CouponUsed=float(row.get('CouponUsed', 0.0)),
+                OrderCount=float(row.get('OrderCount', 0.0)),
+                PreferredLoginDevice=str(row.get('PreferredLoginDevice', 'Mobile Phone')),
+                PreferredPaymentMode=str(row.get('PreferredPaymentMode', 'Debit Card')),
+                Gender=str(row.get('Gender', 'Male'))
+            )
+            pred = predict(req)
+            
+            results.append({
+                "id": str(row.get('CustomerID', f'#C-{idx}')),
+                "tenure": f"{req.Tenure} months",
+                "complaint": "Yes" if req.Complain else "No",
+                "score": f"{req.SatisfactionScore} / 5",
+                "risk": pred["risk_level"],
+                "confidence": pred["confidence"],
+                "customerData": req.dict(),
+                "fullPrediction": pred
+            })
+        except Exception as e:
+            print("Row error:", e)
+            continue
+            
+    return {"results": results, "total": len(results)}
+
+if __name__ == "__main__":
+    import uvicorn
+    uvicorn.run("main:app", host="127.0.0.1", port=8005, reload=True)
